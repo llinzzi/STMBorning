@@ -45,6 +45,10 @@ void MX_TIM3_Init(void);
 /* USER CODE BEGIN Prototypes */
 void Servo_SetAngle(uint8_t angle);
 void Servo2_SetAngle(uint8_t angle);  // PB1舵机控制
+void Buzzer_PlayAngryMusic(void);     // 播放生气的音乐
+void Buzzer_PlayHappyMusic(void);     // 播放愉快的音乐
+void Buzzer_SetFrequency(uint16_t freq);  // 设置蜂鸣器频率
+void Buzzer_Stop(void);               // 停止蜂鸣器
 /* USER CODE END Prototypes */
 
 #ifdef __cplusplus

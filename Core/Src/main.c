@@ -46,13 +46,9 @@
 
 /* USER CODE BEGIN PV */
 volatile uint8_t current_angle = 0;  // 当前角度 - PA7舵机
-volatile uint8_t servo_moving = 0;   // 舵机运动标志
-volatile uint8_t target_angle = 180; // 目标角度 - PA7
 volatile uint8_t current_angle2 = 0; // 当前角度 - PB1舵机
-volatile uint8_t servo2_moving = 0;  // PB1舵机运动标志
-volatile uint8_t target_angle2 = 90; // 目标角度 - PB1
 volatile uint32_t last_update_tick = 0; // 上次更新时间
-volatile uint8_t motion_stage = 0;  // 运动阶段: 0=空闲, 1=PA7前进, 2=PB1前进, 3=PB1后退, 4=PA7后退
+volatile uint8_t motion_stage = 0;  // 运动阶段: 0=空闲, 1=播放生气音乐, 2=PA7前进, 3=PB1前进, 4=PB1后退, 5=PA7后退, 6=播放欢快音乐
 #define SERVO_UPDATE_INTERVAL 20  // 舵机更新间隔(ms)
 /* USER CODE END PV */
 
@@ -131,46 +127,65 @@ int main(void)
       last_update_tick = HAL_GetTick();
       
       switch(motion_stage) {
-        case 1:  // 阶段1: PA7 0度 -> 180度
+        case 1:  // 阶段1: 播放生气的音乐
+          Buzzer_PlayAngryMusic();
+          // 恢复TIM3配置用于舵机
+          MX_TIM3_Init();
+          HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);
+          // 初始化舵机位置
+          current_angle = 0;
+          current_angle2 = 0;
+          Servo_SetAngle(current_angle);
+          Servo2_SetAngle(current_angle2);
+          // 进入下一阶段
+          motion_stage = 2;
+          break;
+          
+        case 2:  // 阶段2: PA7 0度 -> 180度
           if (current_angle < 180) {
             current_angle++;
             Servo_SetAngle(current_angle);
           } else {
             // PA7到达180度，进入下一阶段
-            motion_stage = 2;
+            motion_stage = 3;
           }
           break;
           
-        case 2:  // 阶段2: PB1 0度 -> 90度
+        case 3:  // 阶段3: PB1 0度 -> 90度
           if (current_angle2 < 90) {
             current_angle2++;
             Servo2_SetAngle(current_angle2);
           } else {
             // PB1到达90度，进入下一阶段
-            motion_stage = 3;
+            motion_stage = 4;
           }
           break;
           
-        case 3:  // 阶段3: PB1 90度 -> 0度
+        case 4:  // 阶段4: PB1 90度 -> 0度
           if (current_angle2 > 0) {
             current_angle2--;
             Servo2_SetAngle(current_angle2);
           } else {
             // PB1回到0度，关闭PB1的PWM，进入下一阶段
             HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_4);
-            motion_stage = 4;
+            motion_stage = 5;
           }
           break;
           
-        case 4:  // 阶段4: PA7 180度 -> 0度
+        case 5:  // 阶段5: PA7 180度 -> 0度
           if (current_angle > 0) {
             current_angle--;
             Servo_SetAngle(current_angle);
           } else {
-            // PA7回到0度，关闭PA7的PWM，完成所有动作
+            // PA7回到0度，关闭PA7的PWM，进入播放欢快音乐阶段
             HAL_TIM_PWM_Stop(&htim17, TIM_CHANNEL_1);
-            motion_stage = 0;  // 返回空闲状态
+            motion_stage = 6;  // 进入播放音乐阶段
           }
+          break;
+          
+        case 6:  // 阶段6: 播放欢快的音乐
+          Buzzer_PlayHappyMusic();
+          motion_stage = 0;  // 返回空闲状态
           break;
           
         default:

@@ -151,8 +151,17 @@ void HAL_TIM_MspPostInit(TIM_HandleTypeDef* timHandle)
 
     __HAL_RCC_GPIOB_CLK_ENABLE();
     /**TIM3 GPIO Configuration
-    PB1     ------> TIM3_CH4
+    PA6     ------> TIM3_CH1 (蜂鸣器)
+    PB1     ------> TIM3_CH4 (舵机)
     */
+    __HAL_RCC_GPIOA_CLK_ENABLE();
+    GPIO_InitStruct.Pin = GPIO_PIN_6;
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    GPIO_InitStruct.Alternate = GPIO_AF1_TIM3;
+    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+    
     GPIO_InitStruct.Pin = GPIO_PIN_1;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
@@ -255,6 +264,12 @@ void MX_TIM3_Init(void)
   sConfigOC.Pulse = 500;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  // 配置通道1 - 蜂鸣器 (PA6)
+  if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  // 配置通道4 - 舵机 (PB1)
   if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_4) != HAL_OK)
   {
     Error_Handler();
@@ -277,6 +292,85 @@ void Servo2_SetAngle(uint8_t angle)
   
   pulse = 500 + (angle * 2000 / 180);
   __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_4, pulse);
+}
+
+/**
+  * @brief  设置蜂鸣器频率
+  * @param  freq: 频率 (Hz), 0=停止
+  * @retval None
+  */
+void Buzzer_SetFrequency(uint16_t freq)
+{
+  if (freq == 0) {
+    HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_1);
+    return;
+  }
+  
+  // 计算ARR和PSC以生成指定频率
+  // 系统时钟 16MHz
+  uint32_t timer_clock = 16000000;
+  uint32_t period = timer_clock / freq;
+  
+  // 选择适当的预分频和周期
+  uint16_t prescaler = 0;
+  uint16_t arr;
+  
+  if (period > 65535) {
+    prescaler = (period / 65535);
+    arr = (period / (prescaler + 1)) - 1;
+  } else {
+    prescaler = 0;
+    arr = period - 1;
+  }
+  
+  __HAL_TIM_SET_PRESCALER(&htim3, prescaler);
+  __HAL_TIM_SET_AUTORELOAD(&htim3, arr);
+  __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, arr / 2);  // 50%占空比
+  
+  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
+}
+
+/**
+  * @brief  停止蜂鸣器
+  * @retval None
+  */
+void Buzzer_Stop(void)
+{
+  HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_1);
+}
+
+/**
+  * @brief  播放生气的音乐 (降调)
+  * @retval None
+  */
+void Buzzer_PlayAngryMusic(void)
+{
+  // 生气的音乐: 低沉的降调
+  uint16_t angry_notes[] = {392, 349, 294, 262};  // G4, F4, D4, C4
+  uint16_t durations[] = {200, 200, 200, 400};
+  
+  for (int i = 0; i < 4; i++) {
+    Buzzer_SetFrequency(angry_notes[i]);
+    HAL_Delay(durations[i]);
+  }
+  Buzzer_Stop();
+}
+
+/**
+  * @brief  播放愉快的音乐 (升调)
+  * @retval None
+  */
+void Buzzer_PlayHappyMusic(void)
+{
+  // 愉快的音乐: 欢快的升调
+  uint16_t happy_notes[] = {523, 587, 659, 784, 880};  // C5, D5, E5, G5, A5
+  uint16_t durations[] = {150, 150, 150, 150, 300};
+  
+  for (int i = 0; i < 5; i++) {
+    Buzzer_SetFrequency(happy_notes[i]);
+    HAL_Delay(durations[i]);
+  }
+  Buzzer_Stop();
 }
 
 /* USER CODE END 1 */

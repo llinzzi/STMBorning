@@ -22,12 +22,8 @@
 #include "stm32g0xx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-extern volatile uint8_t current_angle;
-extern volatile uint8_t current_angle2;
-extern volatile uint32_t last_update_tick;
 extern volatile uint8_t motion_stage;
 extern TIM_HandleTypeDef htim17;
-extern TIM_HandleTypeDef htim3;
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -169,13 +165,11 @@ void EXTI0_1_IRQHandler(void)
 void HAL_GPIO_EXTI_Rising_Callback(uint16_t GPIO_Pin)
 {
   if (GPIO_Pin == GPIO_PIN_0) {
-    // 按键按下，重置并启动整个动作序列
+    // 按键按下，启动整个动作序列
     if (motion_stage == 0) {  // 只有在空闲时才响应
-      current_angle = 0;
-      current_angle2 = 0;
-      motion_stage = 1;  // 启动阶段1
+      // 设置阶段1，在主循环中播放音乐
+      motion_stage = 1;  // 启动阶段1 (播放生气音乐)
       HAL_TIM_PWM_Start(&htim17, TIM_CHANNEL_1);  // 启动PA7的PWM
-      HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);   // 启动PB1的PWM
     }
   }
 }
