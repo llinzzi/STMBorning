@@ -23,8 +23,9 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 extern volatile uint8_t current_angle;
-extern volatile uint8_t direction;
-extern volatile uint16_t pause_counter;
+extern volatile uint8_t servo_moving;
+extern volatile uint8_t target_angle;
+extern TIM_HandleTypeDef htim17;
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -142,6 +143,36 @@ void SysTick_Handler(void)
 /* please refer to the startup file (startup_stm32g0xx.s).                    */
 /******************************************************************************/
 
+/**
+  * @brief This function handles EXTI line 0 and line 1 interrupts.
+  */
+void EXTI0_1_IRQHandler(void)
+{
+  /* USER CODE BEGIN EXTI0_1_IRQn 0 */
+
+  /* USER CODE END EXTI0_1_IRQn 0 */
+  HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_0);
+  /* USER CODE BEGIN EXTI0_1_IRQn 1 */
+
+  /* USER CODE END EXTI0_1_IRQn 1 */
+}
+
 /* USER CODE BEGIN 1 */
+
+/**
+  * @brief  EXTI中断回调函数
+  * @param  GPIO_Pin: 触发中断的GPIO引脚
+  * @retval None
+  */
+void HAL_GPIO_EXTI_Rising_Callback(uint16_t GPIO_Pin)
+{
+  if (GPIO_Pin == GPIO_PIN_0) {
+    // 按键按下，重置舵机并启动运动
+    current_angle = 0;      // 重置为0度
+    target_angle = 180;     // 设置目标为180度
+    servo_moving = 1;       // 启动运动
+    HAL_TIM_PWM_Start(&htim17, TIM_CHANNEL_1);  // 启动PWM输出
+  }
+}
 
 /* USER CODE END 1 */
