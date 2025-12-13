@@ -45,8 +45,10 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-volatile uint8_t servo_moving = 0;  // 舵机运动标志
 volatile uint8_t current_angle = 0; // 当前角度
+volatile uint8_t direction = 1;     // 方向: 1=增加(0->90), 0=减少(90->0)
+volatile uint16_t pause_counter = 0; // 暂停计数器
+#define PAUSE_TIME 1000  // 在0度和90度停留时间(ms)
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -96,9 +98,10 @@ int main(void)
   // 启动TIM17 PWM输出
   HAL_TIM_PWM_Start(&htim17, TIM_CHANNEL_1);
   
-  // 使能PA0的外部中断
-  HAL_NVIC_SetPriority(EXTI0_1_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(EXTI0_1_IRQn);
+  // 初始化舵机位置为0度
+  current_angle = 0;
+  direction = 1;
+  Servo_SetAngle(current_angle);
 
   /* USER CODE END 2 */
 
@@ -109,14 +112,38 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    // 如果舵机正在运动
-    if (servo_moving) {
+    // 舵机在0-90度之间来回摆动
+    if (direction == 1) {
+      // 从0度向90度移动
       if (current_angle < 90) {
         current_angle++;
         Servo_SetAngle(current_angle);
         HAL_Delay(20);  // 每20ms移动1度，平滑运动
       } else {
-        servo_moving = 0;  // 到达目标位置，停止运动
+        // 到达90度，停留一段时间
+        if (pause_counter < PAUSE_TIME) {
+          pause_counter += 20;
+          HAL_Delay(20);
+        } else {
+          pause_counter = 0;
+          direction = 0;  // 改变方向
+        }
+      }
+    } else {
+      // 从90度向0度移动
+      if (current_angle > 0) {
+        current_angle--;
+        Servo_SetAngle(current_angle);
+        HAL_Delay(20);  // 每20ms移动1度，平滑运动
+      } else {
+        // 到达0度，停留一段时间
+        if (pause_counter < PAUSE_TIME) {
+          pause_counter += 20;
+          HAL_Delay(20);
+        } else {
+          pause_counter = 0;
+          direction = 1;  // 改变方向
+        }
       }
     }
   }
