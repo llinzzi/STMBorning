@@ -52,6 +52,7 @@ volatile uint8_t current_angle2 = 0; // 当前角度 - PB1舵机
 volatile uint8_t servo2_moving = 0;  // PB1舵机运动标志
 volatile uint8_t target_angle2 = 90; // 目标角度 - PB1
 volatile uint32_t last_update_tick = 0; // 上次更新时间
+volatile uint8_t motion_stage = 0;  // 运动阶段: 0=空闲, 1=PA7前进, 2=PB1前进, 3=PB1后退, 4=PA7后退
 #define SERVO_UPDATE_INTERVAL 20  // 舵机更新间隔(ms)
 /* USER CODE END PV */
 
@@ -129,33 +130,52 @@ int main(void)
     if (HAL_GetTick() - last_update_tick >= SERVO_UPDATE_INTERVAL) {
       last_update_tick = HAL_GetTick();
       
-      // PA7舵机正在运动
-      if (servo_moving) {
-        if (current_angle < target_angle) {
-          current_angle++;
-          Servo_SetAngle(current_angle);
-        } else {
-          // PA7到达目标位置，停止运动并关闭PWM
-          servo_moving = 0;
-          HAL_TIM_PWM_Stop(&htim17, TIM_CHANNEL_1);  // 停止PWM，避免抖动
+      switch(motion_stage) {
+        case 1:  // 阶段1: PA7 0度 -> 180度
+          if (current_angle < 180) {
+            current_angle++;
+            Servo_SetAngle(current_angle);
+          } else {
+            // PA7到达180度，进入下一阶段
+            motion_stage = 2;
+          }
+          break;
           
-          // PA7完成后，启动PB1舵机
-          current_angle2 = 0;
-          target_angle2 = 90;
-          servo2_moving = 1;
-          HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);  // 启动PB1的PWM
-        }
-      }
-      // PB1舵机正在运动
-      else if (servo2_moving) {
-        if (current_angle2 < target_angle2) {
-          current_angle2++;
-          Servo2_SetAngle(current_angle2);
-        } else {
-          // PB1到达目标位置，停止运动并关闭PWM
-          servo2_moving = 0;
-          HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_4);  // 停止PWM，避免抖动
-        }
+        case 2:  // 阶段2: PB1 0度 -> 90度
+          if (current_angle2 < 90) {
+            current_angle2++;
+            Servo2_SetAngle(current_angle2);
+          } else {
+            // PB1到达90度，进入下一阶段
+            motion_stage = 3;
+          }
+          break;
+          
+        case 3:  // 阶段3: PB1 90度 -> 0度
+          if (current_angle2 > 0) {
+            current_angle2--;
+            Servo2_SetAngle(current_angle2);
+          } else {
+            // PB1回到0度，关闭PB1的PWM，进入下一阶段
+            HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_4);
+            motion_stage = 4;
+          }
+          break;
+          
+        case 4:  // 阶段4: PA7 180度 -> 0度
+          if (current_angle > 0) {
+            current_angle--;
+            Servo_SetAngle(current_angle);
+          } else {
+            // PA7回到0度，关闭PA7的PWM，完成所有动作
+            HAL_TIM_PWM_Stop(&htim17, TIM_CHANNEL_1);
+            motion_stage = 0;  // 返回空闲状态
+          }
+          break;
+          
+        default:
+          // 阶段0: 空闲状态，不做任何事
+          break;
       }
     }
   }
