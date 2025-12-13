@@ -45,9 +45,14 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-volatile uint8_t current_angle = 0;  // 当前角度
+volatile uint8_t current_angle = 0;  // 当前角度 - PA7舵机
 volatile uint8_t servo_moving = 0;   // 舵机运动标志
-volatile uint8_t target_angle = 180; // 目标角度
+volatile uint8_t target_angle = 180; // 目标角度 - PA7
+volatile uint8_t current_angle2 = 0; // 当前角度 - PB1舵机
+volatile uint8_t servo2_moving = 0;  // PB1舵机运动标志
+volatile uint8_t target_angle2 = 90; // 目标角度 - PB1
+volatile uint32_t last_update_tick = 0; // 上次更新时间
+#define SERVO_UPDATE_INTERVAL 20  // 舵机更新间隔(ms)
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -92,14 +97,20 @@ int main(void)
   MX_GPIO_Init();
   MX_USART1_UART_Init();
   MX_TIM17_Init();
+  MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
   
   // 启动TIM17 PWM输出
   HAL_TIM_PWM_Start(&htim17, TIM_CHANNEL_1);
   
+  // 启动TIM3 PWM输出
+  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);
+  
   // 初始化舵机位置为0度
   current_angle = 0;
   Servo_SetAngle(current_angle);
+  current_angle2 = 0;
+  Servo2_SetAngle(current_angle2);
   
   // 使能PA0的外部中断
   HAL_NVIC_SetPriority(EXTI0_1_IRQn, 0, 0);
@@ -114,16 +125,37 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    // 如果舵机正在运动
-    if (servo_moving) {
-      if (current_angle < target_angle) {
-        current_angle++;
-        Servo_SetAngle(current_angle);
-        HAL_Delay(20);  // 每20ms移动1度，平滑运动
-      } else {
-        // 到达目标位置，停止运动并关闭PWM
-        servo_moving = 0;
-        HAL_TIM_PWM_Stop(&htim17, TIM_CHANNEL_1);  // 停止PWM，避免抖动
+    // 使用非阻塞延时，每20ms更新一次舵机位置
+    if (HAL_GetTick() - last_update_tick >= SERVO_UPDATE_INTERVAL) {
+      last_update_tick = HAL_GetTick();
+      
+      // PA7舵机正在运动
+      if (servo_moving) {
+        if (current_angle < target_angle) {
+          current_angle++;
+          Servo_SetAngle(current_angle);
+        } else {
+          // PA7到达目标位置，停止运动并关闭PWM
+          servo_moving = 0;
+          HAL_TIM_PWM_Stop(&htim17, TIM_CHANNEL_1);  // 停止PWM，避免抖动
+          
+          // PA7完成后，启动PB1舵机
+          current_angle2 = 0;
+          target_angle2 = 90;
+          servo2_moving = 1;
+          HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);  // 启动PB1的PWM
+        }
+      }
+      // PB1舵机正在运动
+      else if (servo2_moving) {
+        if (current_angle2 < target_angle2) {
+          current_angle2++;
+          Servo2_SetAngle(current_angle2);
+        } else {
+          // PB1到达目标位置，停止运动并关闭PWM
+          servo2_moving = 0;
+          HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_4);  // 停止PWM，避免抖动
+        }
       }
     }
   }

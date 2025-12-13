@@ -25,7 +25,11 @@
 extern volatile uint8_t current_angle;
 extern volatile uint8_t servo_moving;
 extern volatile uint8_t target_angle;
+extern volatile uint8_t current_angle2;
+extern volatile uint8_t servo2_moving;
+extern volatile uint32_t last_update_tick;
 extern TIM_HandleTypeDef htim17;
+extern TIM_HandleTypeDef htim3;
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/

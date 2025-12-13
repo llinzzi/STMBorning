@@ -33,15 +33,18 @@ extern "C" {
 /* USER CODE END Includes */
 
 extern TIM_HandleTypeDef htim17;
+extern TIM_HandleTypeDef htim3;
 
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */
 
 void MX_TIM17_Init(void);
+void MX_TIM3_Init(void);
 
 /* USER CODE BEGIN Prototypes */
 void Servo_SetAngle(uint8_t angle);
+void Servo2_SetAngle(uint8_t angle);  // PB1舵机控制
 /* USER CODE END Prototypes */
 
 #ifdef __cplusplus
