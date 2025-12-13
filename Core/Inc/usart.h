@@ -29,19 +29,28 @@ extern "C" {
 #include "main.h"
 
 /* USER CODE BEGIN Includes */
-
+#include <stdio.h>
+#include <string.h>
 /* USER CODE END Includes */
 
 extern UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN Private defines */
+// 舵机配置结构体
+typedef struct {
+  uint8_t start_angle;   // 启动角度
+  uint8_t target_angle;  // 目标角度
+} ServoConfig_t;
 
+extern ServoConfig_t servo_configs[2];
 /* USER CODE END Private defines */
 
 void MX_USART1_UART_Init(void);
 
 /* USER CODE BEGIN Prototypes */
-
+void UART_Printf(const char *format, ...);
+void UART_ProcessCommand(void);
+void UART_PrintServoStatus(void);
 /* USER CODE END Prototypes */
 
 #ifdef __cplusplus

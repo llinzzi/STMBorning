@@ -48,8 +48,10 @@
 volatile uint8_t current_angle = 0;  // 当前角度 - PA7舵机
 volatile uint8_t current_angle2 = 0; // 当前角度 - PB1舵机
 volatile uint32_t last_update_tick = 0; // 上次更新时间
+volatile uint32_t last_print_tick = 0;  // 上次打印时间
 volatile uint8_t motion_stage = 0;  // 运动阶段: 0=空闲, 1=播放生气音乐, 2=PA7前进, 3=PB1前进, 4=PB1后退, 5=PA7后退, 6=播放欢快音乐
 #define SERVO_UPDATE_INTERVAL 20  // 舵机更新间隔(ms)
+#define STATUS_PRINT_INTERVAL 1000  // 状态打印间隔(ms)
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -97,6 +99,16 @@ int main(void)
   MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
   
+  // 启动提示
+  HAL_Delay(100);  // 等待串口稳定
+  UART_Printf("\r\n\r\n");
+  UART_Printf("==========================================\r\n");
+  UART_Printf("  STM32G030 舵机控制系统\r\n");
+  UART_Printf("  版本: v1.0\r\n");
+  UART_Printf("  串口波特率: 115200\r\n");
+  UART_Printf("==========================================\r\n");
+  UART_Printf("输入 'help' 查看命令帮助\r\n\r\n");
+  
   // 启动TIM17 PWM输出
   HAL_TIM_PWM_Start(&htim17, TIM_CHANNEL_1);
   
@@ -112,6 +124,9 @@ int main(void)
   // 使能PA0的外部中断
   HAL_NVIC_SetPriority(EXTI0_1_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(EXTI0_1_IRQn);
+  
+  // 显示初始状态
+  UART_PrintServoStatus();
 
   /* USER CODE END 2 */
 
@@ -122,6 +137,12 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+    // 每1秒输出一次状态信息
+    if (HAL_GetTick() - last_print_tick >= STATUS_PRINT_INTERVAL) {
+      last_print_tick = HAL_GetTick();
+      UART_PrintServoStatus();
+    }
+    
     // 使用非阻塞延时，每20ms更新一次舵机位置
     if (HAL_GetTick() - last_update_tick >= SERVO_UPDATE_INTERVAL) {
       last_update_tick = HAL_GetTick();
@@ -132,52 +153,64 @@ int main(void)
           // 恢复TIM3配置用于舵机
           MX_TIM3_Init();
           HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);
-          // 初始化舵机位置
-          current_angle = 0;
-          current_angle2 = 0;
+          // 使用配置的启动角度初始化舵机位置
+          current_angle = servo_configs[0].start_angle;
+          current_angle2 = servo_configs[1].start_angle;
           Servo_SetAngle(current_angle);
           Servo2_SetAngle(current_angle2);
           // 进入下一阶段
           motion_stage = 2;
           break;
           
-        case 2:  // 阶段2: PA7 0度 -> 180度
-          if (current_angle < 180) {
+        case 2:  // 阶段2: PA7 启动角度 -> 目标角度
+          if (current_angle < servo_configs[0].target_angle) {
             current_angle++;
             Servo_SetAngle(current_angle);
+          } else if (current_angle > servo_configs[0].target_angle) {
+            current_angle--;
+            Servo_SetAngle(current_angle);
           } else {
-            // PA7到达180度，进入下一阶段
+            // PA7到达目标角度，进入下一阶段
             motion_stage = 3;
           }
           break;
           
-        case 3:  // 阶段3: PB1 0度 -> 90度
-          if (current_angle2 < 90) {
+        case 3:  // 阶段3: PB1 启动角度 -> 目标角度
+          if (current_angle2 < servo_configs[1].target_angle) {
             current_angle2++;
             Servo2_SetAngle(current_angle2);
+          } else if (current_angle2 > servo_configs[1].target_angle) {
+            current_angle2--;
+            Servo2_SetAngle(current_angle2);
           } else {
-            // PB1到达90度，进入下一阶段
+            // PB1到达目标角度，进入下一阶段
             motion_stage = 4;
           }
           break;
           
-        case 4:  // 阶段4: PB1 90度 -> 0度
-          if (current_angle2 > 0) {
+        case 4:  // 阶段4: PB1 目标角度 -> 启动角度
+          if (current_angle2 > servo_configs[1].start_angle) {
             current_angle2--;
             Servo2_SetAngle(current_angle2);
+          } else if (current_angle2 < servo_configs[1].start_angle) {
+            current_angle2++;
+            Servo2_SetAngle(current_angle2);
           } else {
-            // PB1回到0度，关闭PB1的PWM，进入下一阶段
+            // PB1回到启动角度，关闭PB1的PWM，进入下一阶段
             HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_4);
             motion_stage = 5;
           }
           break;
           
-        case 5:  // 阶段5: PA7 180度 -> 0度
-          if (current_angle > 0) {
+        case 5:  // 阶段5: PA7 目标角度 -> 启动角度
+          if (current_angle > servo_configs[0].start_angle) {
             current_angle--;
             Servo_SetAngle(current_angle);
+          } else if (current_angle < servo_configs[0].start_angle) {
+            current_angle++;
+            Servo_SetAngle(current_angle);
           } else {
-            // PA7回到0度，关闭PA7的PWM，进入播放欢快音乐阶段
+            // PA7回到启动角度，关闭PA7的PWM，进入播放欢快音乐阶段
             HAL_TIM_PWM_Stop(&htim17, TIM_CHANNEL_1);
             motion_stage = 6;  // 进入播放音乐阶段
           }

@@ -340,16 +340,16 @@ void Buzzer_Stop(void)
 }
 
 /**
-  * @brief  播放生气的音乐 (降调)
+  * @brief  播放生气的音乐 (升调)
   * @retval None
   */
 void Buzzer_PlayAngryMusic(void)
 {
-  // 生气的音乐: 低沉的降调
-  uint16_t angry_notes[] = {392, 349, 294, 262};  // G4, F4, D4, C4
-  uint16_t durations[] = {200, 200, 200, 400};
+  // 生气的音乐: 欢快的升调
+  uint16_t angry_notes[] = {523, 587, 659, 784, 880};  // C5, D5, E5, G5, A5
+  uint16_t durations[] = {150, 150, 150, 150, 300};
   
-  for (int i = 0; i < 4; i++) {
+  for (int i = 0; i < 5; i++) {
     Buzzer_SetFrequency(angry_notes[i]);
     HAL_Delay(durations[i]);
   }
@@ -357,16 +357,16 @@ void Buzzer_PlayAngryMusic(void)
 }
 
 /**
-  * @brief  播放愉快的音乐 (升调)
+  * @brief  播放愉快的音乐 (降调)
   * @retval None
   */
 void Buzzer_PlayHappyMusic(void)
 {
-  // 愉快的音乐: 欢快的升调
-  uint16_t happy_notes[] = {523, 587, 659, 784, 880};  // C5, D5, E5, G5, A5
-  uint16_t durations[] = {150, 150, 150, 150, 300};
+  // 愉快的音乐: 低沉的降调
+  uint16_t happy_notes[] = {392, 349, 294, 262};  // G4, F4, D4, C4
+  uint16_t durations[] = {200, 200, 200, 400};
   
-  for (int i = 0; i < 5; i++) {
+  for (int i = 0; i < 4; i++) {
     Buzzer_SetFrequency(happy_notes[i]);
     HAL_Delay(durations[i]);
   }
