@@ -32,8 +32,8 @@ static uint8_t uart_rx_byte;
 
 // 舵机参数存储（使用头文件中定义的类型）
 ServoConfig_t servo_configs[2] = {
-  {0, 180},  // 舵机1 (PA7): 默认0度到0度, 目标0度到180度
-  {0, 90}    // 舵机2 (PB1): 默认0度到0度, 目标0度到90度
+  {130, 0},  // 舵机1 (PA7): 启动150度, 目标0度
+  {5, 92}    // 舵机2 (PB1): 默认0度到0度, 目标0度到90度
 };
 
 // 外部变量声明
@@ -212,6 +212,7 @@ void UART_PrintServoStatus(void)
   *   status - 查看舵机状态
   *   set <servo> <start> <target> - 设置舵机参数 (servo: 1或2, start/target: 0-180)
   *   run <servo> <start> <target> - 设置并立即执行
+  *   angle <servo> <angle> - 直接设置舵机角度
   *   help - 显示帮助信息
   */
 void UART_ProcessCommand(void)
@@ -259,12 +260,28 @@ void UART_ProcessCommand(void)
       UART_Printf("错误: 参数超出范围! (舵机:1-2, 角度:0-180)\r\n");
     }
   }
+  else if (sscanf((char*)uart_rx_buffer, "angle %d %d", &servo_id, &start_angle) == 2) {
+    if (servo_id >= 1 && servo_id <= 2 && start_angle >= 0 && start_angle <= 180) {
+      if (servo_id == 1) {
+        current_angle = start_angle;
+        Servo_SetAngle(current_angle);
+        UART_Printf("舵机1 当前角度已设置为: %d度\r\n", start_angle);
+      } else {
+        current_angle2 = start_angle;
+        Servo2_SetAngle(current_angle2);
+        UART_Printf("舵机2 当前角度已设置为: %d度\r\n", start_angle);
+      }
+    } else {
+      UART_Printf("错误: 参数超出范围! (舵机:1-2, 角度:0-180)\r\n");
+    }
+  }
   else if (strncmp((char*)uart_rx_buffer, "help", 4) == 0) {
     UART_Printf("\r\n===== 串口命令帮助 =====\r\n");
     UART_Printf("命令格式:\r\n");
     UART_Printf("  status                      - 查看舵机状态\r\n");
     UART_Printf("  set <servo> <start> <target> - 设置舵机参数\r\n");
     UART_Printf("  run <servo> <start> <target> - 设置并立即执行\r\n");
+    UART_Printf("  angle <servo> <angle>       - 直接设置舵机角度\r\n");
     UART_Printf("  help                        - 显示帮助信息\r\n");
     UART_Printf("\r\n参数说明:\r\n");
     UART_Printf("  servo: 舵机编号 (1=PA7, 2=PB1)\r\n");
@@ -273,6 +290,7 @@ void UART_ProcessCommand(void)
     UART_Printf("\r\n示例:\r\n");
     UART_Printf("  set 1 0 90     - 设置舵机1从0度到9０度\r\n");
     UART_Printf("  run 2 45 135   - 舵机2从45度立即移动到135度\r\n");
+    UART_Printf("  angle 1 90     - 直接设置舵机1为90度\r\n");
     UART_Printf("====================\r\n\r\n");
   }
   else {
