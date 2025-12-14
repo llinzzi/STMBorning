@@ -99,15 +99,15 @@ int main(void)
   MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
   
-  // 启动提示
-  HAL_Delay(100);  // 等待串口稳定
+  // Startup message
+  HAL_Delay(100);  // Wait for UART stability
   UART_Printf("\r\n\r\n");
-  UART_Printf("==========================================\r\n");
-  UART_Printf("  STM32G030 舵机控制系统\r\n");
-  UART_Printf("  版本: v1.0\r\n");
-  UART_Printf("  串口波特率: 115200\r\n");
-  UART_Printf("==========================================\r\n");
-  UART_Printf("输入 'help' 查看命令帮助\r\n\r\n");
+  UART_Printf("[BOOT] ==========================================\r\n");
+  UART_Printf("[BOOT] STM32G030 Servo Control System\r\n");
+  UART_Printf("[BOOT] Version: v1.0\r\n");
+  UART_Printf("[BOOT] UART: 115200 8N1\r\n");
+  UART_Printf("[BOOT] ==========================================\r\n");
+  UART_Printf("[INFO] Type 'help' for commands\r\n\r\n");
   
   // 启动TIM17 PWM输出
   HAL_TIM_PWM_Start(&htim17, TIM_CHANNEL_1);
@@ -124,6 +124,10 @@ int main(void)
   // 使能PA0的外部中断
   HAL_NVIC_SetPriority(EXTI0_1_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(EXTI0_1_IRQn);
+  
+  // 初始化时间戳
+  last_print_tick = HAL_GetTick();
+  last_update_tick = HAL_GetTick();
   
   // 显示初始状态
   UART_PrintServoStatus();

@@ -187,33 +187,21 @@ void UART_PrintServoStatus(void)
 {
   uint32_t current_tick = HAL_GetTick();
   uint32_t elapsed = (current_tick - last_update_tick);
-  float speed = (elapsed > 0) ? (1000.0f / elapsed) : 0;  // 度/秒
+  float speed = (elapsed > 0) ? (1000.0f / elapsed) : 0;  // degree/sec
   
-  UART_Printf("\r\n===== 舵机状态 =====\r\n");
-  UART_Printf("舵机1 (PA7):\r\n");
-  UART_Printf("  启动角度: %d度\r\n", servo_configs[0].start_angle);
-  UART_Printf("  目标角度: %d度\r\n", servo_configs[0].target_angle);
-  UART_Printf("  当前角度: %d度\r\n", current_angle);
-  UART_Printf("  速度: %.1f 度/秒\r\n", speed);
-  
-  UART_Printf("\r\n舵机2 (PB1):\r\n");
-  UART_Printf("  启动角度: %d度\r\n", servo_configs[1].start_angle);
-  UART_Printf("  目标角度: %d度\r\n", servo_configs[1].target_angle);
-  UART_Printf("  当前角度: %d度\r\n", current_angle2);
-  UART_Printf("  速度: %.1f 度/秒\r\n", speed);
-  
-  UART_Printf("\r\n当前阶段: %d\r\n", motion_stage);
-  UART_Printf("==================\r\n\r\n");
+  UART_Printf("%d,%d,%d,%d,%d,%d\r\n", 
+              servo_configs[0].start_angle, servo_configs[0].target_angle, current_angle,
+              servo_configs[1].start_angle, servo_configs[1].target_angle, current_angle2);
 }
 
 /**
-  * @brief  处理串口命令
-  * 命令格式:
-  *   status - 查看舵机状态
-  *   set <servo> <start> <target> - 设置舵机参数 (servo: 1或2, start/target: 0-180)
-  *   run <servo> <start> <target> - 设置并立即执行
-  *   angle <servo> <angle> - 直接设置舵机角度
-  *   help - 显示帮助信息
+  * @brief  Process UART commands
+  * Command format:
+  *   status - View servo status
+  *   set <servo> <start> <target> - Set servo parameters (servo: 1 or 2, start/target: 0-180)
+  *   run <servo> <start> <target> - Set and execute immediately
+  *   angle <servo> <angle> - Set servo angle directly
+  *   help - Show help information
   */
 void UART_ProcessCommand(void)
 {
@@ -228,36 +216,36 @@ void UART_ProcessCommand(void)
     if (servo_id >= 1 && servo_id <= 2 && start_angle >= 0 && start_angle <= 180 && target_angle >= 0 && target_angle <= 180) {
       servo_configs[servo_id - 1].start_angle = start_angle;
       servo_configs[servo_id - 1].target_angle = target_angle;
-      UART_Printf("舵机%d 设置成功: 启动=%d度, 目标=%d度\r\n", servo_id, start_angle, target_angle);
+      UART_Printf("[CFG] Servo%d: start=%d, target=%d\r\n", servo_id, start_angle, target_angle);
     } else {
-      UART_Printf("错误: 参数超出范围! (舵机:1-2, 角度:0-180)\r\n");
+      UART_Printf("[ERR] Invalid params (servo:1-2, angle:0-180)\r\n");
     }
   }
   else if (sscanf((char*)uart_rx_buffer, "run %d %d %d", &servo_id, &start_angle, &target_angle) == 3) {
     if (servo_id >= 1 && servo_id <= 2 && start_angle >= 0 && start_angle <= 180 && target_angle >= 0 && target_angle <= 180) {
       servo_configs[servo_id - 1].start_angle = start_angle;
       servo_configs[servo_id - 1].target_angle = target_angle;
-      UART_Printf("舵机%d 开始运动: %d度 -> %d度\r\n", servo_id, start_angle, target_angle);
+      UART_Printf("[RUN] Servo%d: %d -> %d deg\r\n", servo_id, start_angle, target_angle);
       
-      // 立即执行
-      if (motion_stage == 0) {  // 只有空闲时才执行
+      // Execute immediately
+      if (motion_stage == 0) {  // Only execute when idle
         if (servo_id == 1) {
           current_angle = start_angle;
           Servo_SetAngle(current_angle);
           HAL_TIM_PWM_Start(&htim17, TIM_CHANNEL_1);
-          // 设置为单独运动模式 (跳过音乐，直接运动)
-          motion_stage = 2;  // PA7运动阶段
+          // Set to independent motion mode (skip music, move directly)
+          motion_stage = 2;  // PA7 motion stage
         } else {
           current_angle2 = start_angle;
           Servo2_SetAngle(current_angle2);
           HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);
-          motion_stage = 3;  // PB1运动阶段
+          motion_stage = 3;  // PB1 motion stage
         }
       } else {
-        UART_Printf("错误: 舵机正在运动中，请稍后再试!\r\n");
+        UART_Printf("[WARN] Servo busy, stage=%d\r\n", motion_stage);
       }
     } else {
-      UART_Printf("错误: 参数超出范围! (舵机:1-2, 角度:0-180)\r\n");
+      UART_Printf("[ERR] Invalid params (servo:1-2, angle:0-180)\r\n");
     }
   }
   else if (sscanf((char*)uart_rx_buffer, "angle %d %d", &servo_id, &start_angle) == 2) {
@@ -265,37 +253,35 @@ void UART_ProcessCommand(void)
       if (servo_id == 1) {
         current_angle = start_angle;
         Servo_SetAngle(current_angle);
-        UART_Printf("舵机1 当前角度已设置为: %d度\r\n", start_angle);
+        UART_Printf("[SET] Servo1: angle=%d deg\r\n", start_angle);
       } else {
         current_angle2 = start_angle;
         Servo2_SetAngle(current_angle2);
-        UART_Printf("舵机2 当前角度已设置为: %d度\r\n", start_angle);
+        UART_Printf("[SET] Servo2: angle=%d deg\r\n", start_angle);
       }
     } else {
-      UART_Printf("错误: 参数超出范围! (舵机:1-2, 角度:0-180)\r\n");
+      UART_Printf("[ERR] Invalid params (servo:1-2, angle:0-180)\r\n");
     }
   }
   else if (strncmp((char*)uart_rx_buffer, "help", 4) == 0) {
-    UART_Printf("\r\n===== 串口命令帮助 =====\r\n");
-    UART_Printf("命令格式:\r\n");
-    UART_Printf("  status                      - 查看舵机状态\r\n");
-    UART_Printf("  set <servo> <start> <target> - 设置舵机参数\r\n");
-    UART_Printf("  run <servo> <start> <target> - 设置并立即执行\r\n");
-    UART_Printf("  angle <servo> <angle>       - 直接设置舵机角度\r\n");
-    UART_Printf("  help                        - 显示帮助信息\r\n");
-    UART_Printf("\r\n参数说明:\r\n");
-    UART_Printf("  servo: 舵机编号 (1=PA7, 2=PB1)\r\n");
-    UART_Printf("  start: 启动角度 (0-180)\r\n");
-    UART_Printf("  target: 目标角度 (0-180)\r\n");
-    UART_Printf("\r\n示例:\r\n");
-    UART_Printf("  set 1 0 90     - 设置舵机1从0度到9０度\r\n");
-    UART_Printf("  run 2 45 135   - 舵机2从45度立即移动到135度\r\n");
-    UART_Printf("  angle 1 90     - 直接设置舵机1为90度\r\n");
-    UART_Printf("====================\r\n\r\n");
+    UART_Printf("\r\n[HELP] ===== Command List =====\r\n");
+    UART_Printf("  status                       - View servo status\r\n");
+    UART_Printf("  set <id> <start> <target>    - Set servo params\r\n");
+    UART_Printf("  run <id> <start> <target>    - Run immediately\r\n");
+    UART_Printf("  angle <id> <angle>           - Set angle directly\r\n");
+    UART_Printf("  help                         - Show this help\r\n");
+    UART_Printf("\r\n[PARAM]\r\n");
+    UART_Printf("  id:     1=PA7, 2=PB1\r\n");
+    UART_Printf("  angle:  0-180 deg\r\n");
+    UART_Printf("\r\n[EXAMPLE]\r\n");
+    UART_Printf("  set 1 0 90      # Set servo1: 0->90\r\n");
+    UART_Printf("  run 2 45 135    # Run servo2: 45->135\r\n");
+    UART_Printf("  angle 1 90      # Set servo1 to 90\r\n");
+    UART_Printf("[HELP] ============================\r\n\r\n");
   }
   else {
-    UART_Printf("未知命令: %s\r\n", uart_rx_buffer);
-    UART_Printf("输入 'help' 查看帮助信息\r\n");
+    UART_Printf("[ERR] Unknown cmd: %s\r\n", uart_rx_buffer);
+    UART_Printf("[INFO] Type 'help' for commands\r\n");
   }
 }
 
