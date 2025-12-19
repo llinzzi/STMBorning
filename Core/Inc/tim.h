@@ -34,6 +34,7 @@ extern "C" {
 
 extern TIM_HandleTypeDef htim17;
 extern TIM_HandleTypeDef htim3;
+extern TIM_HandleTypeDef htim14;
 
 /* USER CODE BEGIN Private defines */
 
@@ -41,6 +42,7 @@ extern TIM_HandleTypeDef htim3;
 
 void MX_TIM17_Init(void);
 void MX_TIM3_Init(void);
+void MX_TIM14_Init(void);
 
 /* USER CODE BEGIN Prototypes */
 void Servo_SetAngle(uint8_t angle);

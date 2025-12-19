@@ -49,9 +49,11 @@ volatile uint8_t current_angle = 0;  // 当前角度 - PA7舵机
 volatile uint8_t current_angle2 = 0; // 当前角度 - PB1舵机
 volatile uint32_t last_update_tick = 0; // 上次更新时间
 volatile uint32_t last_print_tick = 0;  // 上次打印时间
-volatile uint8_t motion_stage = 0;  // 运动阶段: 0=空闲, 1=播放生气音乐, 2=PA7前进, 3=PB1前进, 4=PB1后退, 5=PA7后退, 6=播放欢快音乐
+volatile uint8_t motion_stage = 0;  // 运动阶段: 0=空闲, 1=播放生气音乐, 2=PA7前进, 3=PB1前进, 4=PB1后退, 5=PA7后退, 6=播放欢快音乐, 7=angle命令Servo1, 8=angle命令Servo2
+volatile uint8_t target_angle_servo1 = 0;  // angle命令目标角度 - Servo1
+volatile uint8_t target_angle_servo2 = 0;  // angle命令目标角度 - Servo2
 #define SERVO_UPDATE_INTERVAL 20  // 舵机更新间隔(ms)
-#define STATUS_PRINT_INTERVAL 1000  // 状态打印间隔(ms)
+#define STATUS_PRINT_INTERVAL 100  // 状态打印间隔(ms)
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -97,6 +99,7 @@ int main(void)
   MX_USART1_UART_Init();
   MX_TIM17_Init();
   MX_TIM3_Init();
+  MX_TIM14_Init();
   /* USER CODE BEGIN 2 */
   
   // Startup message
@@ -141,11 +144,14 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    // 每1秒输出一次状态信息
-    if (HAL_GetTick() - last_print_tick >= STATUS_PRINT_INTERVAL) {
+    // 每100ms输出一次状态信息（仅在空闲状态）
+    // 注释掉自动打印，避免影响舵机平滑移动
+    /*
+    if (motion_stage == 0 && HAL_GetTick() - last_print_tick >= STATUS_PRINT_INTERVAL) {
       last_print_tick = HAL_GetTick();
       UART_PrintServoStatus();
     }
+    */
     
     // 使用非阻塞延时，每20ms更新一次舵机位置
     if (HAL_GetTick() - last_update_tick >= SERVO_UPDATE_INTERVAL) {
@@ -154,9 +160,6 @@ int main(void)
       switch(motion_stage) {
         case 1:  // 阶段1: 播放生气的音乐
           Buzzer_PlayAngryMusic();
-          // 恢复TIM3配置用于舵机
-          MX_TIM3_Init();
-          HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);
           // 使用配置的启动角度初始化舵机位置
           current_angle = servo_configs[0].start_angle;
           current_angle2 = servo_configs[1].start_angle;
@@ -223,6 +226,32 @@ int main(void)
         case 6:  // 阶段6: 播放欢快的音乐
           Buzzer_PlayHappyMusic();
           motion_stage = 0;  // 返回空闲状态
+          break;
+          
+        case 7:  // 阶段7: angle命令 - Servo1平滑移动
+          if (current_angle < target_angle_servo1) {
+            current_angle++;
+            Servo_SetAngle(current_angle);
+          } else if (current_angle > target_angle_servo1) {
+            current_angle--;
+            Servo_SetAngle(current_angle);
+          } else {
+            // 到达目标角度，返回空闲状态
+            motion_stage = 0;
+          }
+          break;
+          
+        case 8:  // 阶段8: angle命令 - Servo2平滑移动
+          if (current_angle2 < target_angle_servo2) {
+            current_angle2++;
+            Servo2_SetAngle(current_angle2);
+          } else if (current_angle2 > target_angle_servo2) {
+            current_angle2--;
+            Servo2_SetAngle(current_angle2);
+          } else {
+            // 到达目标角度，返回空闲状态
+            motion_stage = 0;
+          }
           break;
           
         default:

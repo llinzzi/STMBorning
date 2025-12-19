@@ -42,12 +42,15 @@ extern volatile uint8_t current_angle2;
 extern volatile uint8_t motion_stage;
 extern volatile uint32_t last_update_tick;
 extern volatile uint32_t last_print_tick;
+extern volatile uint8_t target_angle_servo1;
+extern volatile uint8_t target_angle_servo2;
 
 // 外部函数声明
 extern void Servo_SetAngle(uint8_t angle);
 extern void Servo2_SetAngle(uint8_t angle);
 extern TIM_HandleTypeDef htim17;
 extern TIM_HandleTypeDef htim3;
+extern TIM_HandleTypeDef htim14;
 
 /* USER CODE END 0 */
 
@@ -135,8 +138,8 @@ void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
     HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /* USER CODE BEGIN USART1_MspInit 1 */
-  // 启用USART1中断
-  HAL_NVIC_SetPriority(USART1_IRQn, 1, 0);
+  // 启用USART1中断，设置低优先级避免打断舵机控制
+  HAL_NVIC_SetPriority(USART1_IRQn, 3, 0);
   HAL_NVIC_EnableIRQ(USART1_IRQn);
   /* USER CODE END USART1_MspInit 1 */
   }
@@ -177,7 +180,8 @@ void UART_Printf(const char *format, ...)
   va_start(args, format);
   vsnprintf(buffer, sizeof(buffer), format, args);
   va_end(args);
-  HAL_UART_Transmit(&huart1, (uint8_t*)buffer, strlen(buffer), HAL_MAX_DELAY);
+  // 使用10ms超时，避免长时间阻塞
+  HAL_UART_Transmit(&huart1, (uint8_t*)buffer, strlen(buffer), 10);
 }
 
 /**
@@ -189,7 +193,7 @@ void UART_PrintServoStatus(void)
   uint32_t elapsed = (current_tick - last_update_tick);
   float speed = (elapsed > 0) ? (1000.0f / elapsed) : 0;  // degree/sec
   
-  UART_Printf("%d,%d,%d,%d,%d,%d\r\n", 
+  UART_Printf("%d,%d,%d,%d,%d,%d\n",
               servo_configs[0].start_angle, servo_configs[0].target_angle, current_angle,
               servo_configs[1].start_angle, servo_configs[1].target_angle, current_angle2);
 }
@@ -250,14 +254,23 @@ void UART_ProcessCommand(void)
   }
   else if (sscanf((char*)uart_rx_buffer, "angle %d %d", &servo_id, &start_angle) == 2) {
     if (servo_id >= 1 && servo_id <= 2 && start_angle >= 0 && start_angle <= 180) {
-      if (servo_id == 1) {
-        current_angle = start_angle;
-        Servo_SetAngle(current_angle);
-        UART_Printf("[SET] Servo1: angle=%d deg\r\n", start_angle);
+      if (motion_stage == 0) {  // 只有在空闲状态才执行
+        if (servo_id == 1) {
+          target_angle_servo1 = start_angle;
+          HAL_TIM_PWM_Start(&htim17, TIM_CHANNEL_1);  // 启动PWM输出
+          motion_stage = 7;  // 进入Servo1平滑移动阶段
+          // 不输出调试信息，避免阻塞
+          // UART_Printf("[MOVE] Servo1: %d -> %d deg\r\n", current_angle, start_angle);
+        } else {
+          target_angle_servo2 = start_angle;
+          HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);  // 启动PWM输出
+          Servo2_SetAngle(current_angle2);  // 设置当前角度确保PWM正确
+          motion_stage = 8;  // 进入Servo2平滑移动阶段
+          // 不输出调试信息，避免阻塞
+          // UART_Printf("[MOVE] Servo2: %d -> %d deg\r\n", current_angle2, start_angle);
+        }
       } else {
-        current_angle2 = start_angle;
-        Servo2_SetAngle(current_angle2);
-        UART_Printf("[SET] Servo2: angle=%d deg\r\n", start_angle);
+        UART_Printf("[WARN] Servo busy, stage=%d\r\n", motion_stage);
       }
     } else {
       UART_Printf("[ERR] Invalid params (servo:1-2, angle:0-180)\r\n");
